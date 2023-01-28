@@ -16,7 +16,6 @@ def get_meta(link = r"https://vk.com"):
     try:
         meta = soup.title.text
         s += meta.lower().strip() + " "
-        print(meta)
     except Exception as ex:
         print("заголовок не найден")
         print(ex)
@@ -24,21 +23,21 @@ def get_meta(link = r"https://vk.com"):
 
 
     try:
-        description = soup.find("meta", attrs={"name": "description"}).get("content")
+        description = soup.find("meta", attrs={"name": "description"})["content"]
 
         if (description):
             s += (description + " ").lower()
     except Exception as ex:
         try:
-            description = soup.find("meta", property="og:description").get("content")
+            description = soup.find("meta", attrs={"name": "description"})["content"]
             if (description):
                 s += (description + " ").lower()
         except Exception as e:
             print("Описание не найдено")
             print(ex, e)
     try:
-        keywords = soup.find("meta", attrs={"name": "keywords"}).get("content")
-
+        keywords = soup.find("meta", attrs={"name": "keywords"})["content"]
+        s += keywords.lower().strip() + " "
     except Exception as ex:
         print("Ключевые слова не найдены")
         print(ex)
@@ -77,4 +76,4 @@ def counts_info_words(s):
 
 
 
-print(counts_info_words(get_meta("https://informatics.msk.ru/mod/statements/view.php?id=3962&chapterid=3806#1")))
+print(counts_info_words(get_meta("https://www.youtube.com/watch?v=7hn1_t2ZtJQ")))
