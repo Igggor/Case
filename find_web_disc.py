@@ -10,10 +10,7 @@ def get_meta(link = r"https://vk.com"):
    # print(meta.strip())
     s += meta.lower().strip()
 
-    description = soup.find("meta", property="og:description")
+    description = soup.find("meta", attrs={"name": "description"}).get("content")
     if (description):
-        s += description["content"]
+        s += description
     return (s)
-    #(description["content"] if description else "No discr here, bad WEB Page")
-    #print(soup.html.find("meta"))
-print(get_meta())
