@@ -4,7 +4,9 @@ from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 from Words import words
 def get_meta(link = r"https://vk.com"):
-    href = get(link).text
+    headers={"User-Agent":"Mozilla/5.0"}
+
+    href = get(link, headers=headers).text
     s = ""
     soup = bs(href, 'lxml')
     # meta = soup.find("meta", name="title")
@@ -12,8 +14,9 @@ def get_meta(link = r"https://vk.com"):
         meta = soup.title.text
         s += meta.lower().strip() + " "
     except Exception as ex:
-        print("заголовок не найден")
-        print(ex)
+        pass
+        #print("заголовок не найден")
+        #print(ex)
    # print(meta.strip())
 
 
@@ -25,8 +28,9 @@ def get_meta(link = r"https://vk.com"):
             description = soup.find("meta", attrs={"name": "Description"})["content"]
             s += (description + " ").lower()
         except Exception as e:
-            print("Описание не найдено")
-            print(ex, e)
+            pass
+            #print("Описание не найдено")
+            #print(ex, e)
     try:
         keywords = soup.find("meta", attrs={"name": "keywords"})["content"]
         s += keywords.lower().strip() + " "
@@ -35,9 +39,13 @@ def get_meta(link = r"https://vk.com"):
             keywords = soup.find("meta", attrs={"name": "Keywords"})["content"]
             s += keywords.lower().strip() + " "
         except:
-            print("Ключевые слова не найдены")
-            print(ex)
+            pass
+            #print("Ключевые слова не найдены")
+            #print(ex)
     s = s.replace(" и ", " ")
+    s = s.replace("|", " ")
+    s = s.replace("–", " ")
+    s = s.replace("-", " ")
     s = s.replace(" в ", " ")
     s = s.replace(" на ", " ")
     s = s.replace(" с ", " ")
@@ -45,7 +53,7 @@ def get_meta(link = r"https://vk.com"):
     s = s.replace(" за ", " ")
     s = s.replace(" для ", " ")
     s = s.replace(" мы ", " ")
-    print(s)
+    #print(s)
     return (s)
 
 def counts_info_words(s):
@@ -78,9 +86,13 @@ def counts_info_words(s):
         mes = process.extract(a[i], words["videos"])
         for j in mes:
             if (j[1] > 80): cvid += 1
-    print(f"Mes: {cmes} \nNews: {cnews}\nShops: {cshop}\nGames {cgames}\nVideos {cvid}")
+    output = [cmes, cnews, cshop, cgames, cvid]
+    #print(output)
+    if (max(output) == 0): return "Can't connect"
+    return output
+    #print(f"Mes: {cmes} \nNews: {cnews}\nShops: {cshop}\nGames {cgames}\nVideos {cvid}")
 
 
 
 
-print(counts_info_words(get_meta("https://informatics.msk.ru/mod/statements/view.php?id=3962&chapterid=3806#1")))
+#print(counts_info_words(get_meta("https://www.igrixl.ru/")))
