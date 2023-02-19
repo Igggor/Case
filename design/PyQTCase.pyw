@@ -1,38 +1,92 @@
 # -*- coding: utf-8 -*-
 from array import array
 from words_count import counts_info_words, get_meta
-from Bd import get_all, get_link, add_link_to_bd, find_link, is_link_in_bd
+from Bd import get_all, get_link, add_link_to_bd, find_link, is_link_in_bd, clear_bd
 from Neron_for_case import get_state
-import imp
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import QThread, QObject, pyqtSignal, QRunnable, QThreadPool, QUrl
+from PyQt5.QtCore import QThread, QObject, pyqtSignal, QRunnable, QThreadPool, QUrl, Qt
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+import imp
 import time
 import os
 import sys
 import webbrowser
 import csv
-LoadMenuFlag = False
 FiltersFrameFlag = False
 a = []
+threadpool = QThreadPool()
 
-class worker(QRunnable):
+class workerlabel(QRunnable):
     def __init__(self):
-        super(worker, self).__init__()
+        super(workerlabel, self).__init__()
     def run(self):
         ui.ActionStatusLabel.show()
         time.sleep(2.7)
         ui.ActionStatusLabel.hide()
 
-
 class Ui_MainWindow(object):
-    threadpool = QThreadPool()
+    global threadpool
+    def open (self):
+        self.ActionStatusLabel.setText("Подождите, анализируем полученный список...")
+        self.ActionStatusLabel.adjustSize()
+        self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
+        self.ActionStatusLabel.show()
+        c = 0
+        filepath = QFileDialog.getOpenFileName(self.CentralWidget, 'Загрузить список ссылок для анализа', '/Users', 'CSV File (*.csv)')
+        try:
+            with open(filepath[0], encoding='utf-8') as r_file:
+                file_reader = csv.reader(r_file, delimiter = ",")
+                for row in file_reader:
+                    print(row[0])
+                    a = get_meta(link=row[0])
+                    a = counts_info_words(a)
+                    if (a != "Can't connect"):
+                        f = get_state(a)
+                        ss = add_link_to_bd(link=row[0], type=f, info="None")
+                        if ss == "New line added":
+                            c += 1
+            self.ActionStatusLabel.hide()
+            self.loadData()
+            self.ActionStatusLabel.setText(f"Ссылок из файла успешно загружено: {c}")
+            self.ActionStatusLabel.adjustSize()
+            self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
+            self.label_show()
+        except Exception as ex:
+            print(ex)
+            self.ActionStatusLabel.hide()
+    def deleteDB(self):
+        clear_bd()
+        self.loadData()
+        self.ActionStatusLabel.setText("Список ссылок успешно удалён")
+        self.ActionStatusLabel.adjustSize()
+        self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
+        self.label_show()
+    def keyPressEvent(self, e):
+        if e.key()  == Qt.Key_Return :
+            self.search_link_by_type()
+        elif e.key() == Qt.Key_Enter :   
+            self.search_link_by_type()
+    def mousePressEvent(self, event):
+        global FiltersFrameFlag
+        if event.button() == Qt.LeftButton:
+            if not self.FiltersFrame.isHidden():
+                self.FiltersFrame.hide()
+                FiltersFrameFlag = not FiltersFrameFlag
     def buttonIndividual(self):
         global a
         sender = MainWindow.sender()
         webbrowser.open_new_tab(a[int(sender.objectName())][0])
+    def deleteIndividual(self):
+        global a
+        sender = MainWindow.sender()
+        clear_bd(a[int(sender.objectName())][0])
+        self.loadData()
+        self.ActionStatusLabel.setText("Ссылка успешно удалена")
+        self.ActionStatusLabel.adjustSize()
+        self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
+        self.label_show()
     def loadData(self):
         global a
         self.BDView.clear()
@@ -53,84 +107,111 @@ class Ui_MainWindow(object):
             if(a[i][1] == "video"): type = "Видеохостинг"
             if(a[i][1] == "else"): type = "Другое"
             s = str(a[i][0])
-            if len(s)>55:
-                s = s[0:55] + "...   -   " + type
+            if len(s)>46:
+                s = f'{i+1}) ' + s[0:46] + "...   -   " + type
             else:
-                s = s + "   -   " + type
+                s = f'{i+1}) ' + s + "   -   " + type
             item = QListWidgetItem()
             item_widget = QWidget()
             line_text = QLabel(s)
-            line_push_button = QPushButton("Перейти")
+            line_push_button = QPushButton("")
             sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
             line_push_button.setSizePolicy(sizePolicy)
             line_push_button.setObjectName(str(i))
             line_push_button.clicked.connect(self.buttonIndividual)
+            line_delete_button = QPushButton("")
+            line_delete_button.setSizePolicy(sizePolicy)
+            line_delete_button.setObjectName(str(i))
+            line_delete_button.clicked.connect(self.deleteIndividual)
             item_layout = QHBoxLayout()
             line_text.setStyleSheet("font-size: 17px;\n"
             "font-weight: 400;\n"
             "margin-top: 4px;\n")
-            line_push_button.setStyleSheet("QPushButton {\n"
+            line_delete_button.setStyleSheet("QPushButton {\n"
             "margin-top: 6px;\n"
-            "padding: 5px;"
+            "padding: 1px;"
             "font-size: 14px;\n"
-            "background-color: rgb(0, 200, 255);\n"
-            "border: 1px solid black;\n"
+            "background-color: whitesmoke;\n"
+            "border: 0px;\n"
             "border-radius: 0px;\n"
             "border-radius: 7px\n"
             "}\n"
             "QPushButton:hover {\n"
             "background-color: rgb(120, 200, 255);\n"
             "}\n")
+            line_push_button.setStyleSheet("QPushButton {\n"
+            "margin-top: 6px;\n"
+            "padding: 1px;"
+            "font-size: 14px;\n"
+            "background-color: whitesmoke;\n"
+            "border: 0px;\n"
+            "border-radius: 0px;\n"
+            "border-radius: 7px\n"
+            "}\n"
+            "QPushButton:hover {\n"
+            "background-color: rgb(120, 200, 255);\n"
+            "}\n")
+            plg_dir = os.path.dirname(__file__)
+            icon_path = plg_dir + '/images/delete.png'
+            icon = QtGui.QIcon(icon_path)
+            line_delete_button.setIcon(icon)
+            line_delete_button.setIconSize(QtCore.QSize(22, 20))
+            icon_path1 = plg_dir + '/images/goto.png'
+            icon1 = QtGui.QIcon(icon_path1)
+            line_push_button.setIcon(icon1)
+            line_push_button.setIconSize(QtCore.QSize(22, 20))
             item_widget.setStyleSheet("background-color: whitesmoke;\n")
             item_layout.addWidget(line_text)
             item_layout.addWidget(line_push_button)
+            item_layout.addWidget(line_delete_button)
             item_layout.setContentsMargins(0, 0, 0, 0)
-            item_layout.setSpacing(10)
+            item_layout.setSpacing(3)
             item_layout.addStretch(1)
             item_widget.setLayout(item_layout)
             item.setSizeHint(item_widget.sizeHint())
             self.BDView.addItem(item)
             self.BDView.setItemWidget(item, item_widget)
     def label_show(self):
-        self.obj = worker()
-        self.threadpool.start(self.obj)
+        self.obj = workerlabel()
+        threadpool.start(self.obj)
 
     def check_link(self):
+        global FiltersFrameFlag
+        if not self.FiltersFrame.isHidden():
+            self.FiltersFrame.hide()
+            FiltersFrameFlag = not FiltersFrameFlag
         link = self.SearchBar.text()
+        self.SearchBar.clear()
         try:
             a = get_meta(link=link)
             if a != "Can't connect": a = counts_info_words(a)
-            if (a != "Can't connect"): # Если парсер смог собрать слова, то он вернет массив.
-                type_of_link = get_state(a) #Тут Нейронка оценит что это и вернет тип
-                f = add_link_to_bd(link=link, type=type_of_link, info="") # Добавление ссылка в базу данных
+            if (a != "Can't connect"):
+                type_of_link = get_state(a)
+                f = add_link_to_bd(link=link, type=type_of_link, info="")
                 if (f == "Link is already in bd"):
-                    self.ActionStatusLabel.setText("Ссылка уже содержится в базе данных") # Вместо затычки сделать вывод уведомления, что ссылка уже есть в бд
+                    self.ActionStatusLabel.setText("Ссылка уже содержится в базе данных")
                     self.ActionStatusLabel.adjustSize()
                     self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
                     self.label_show()
                     self.SearchBar.setText("")
-                #Нужно сделать так, чтобы ссылка сразу же была на главной панели 
                 else:
                     with open("links.csv", mode="a", encoding='utf-8') as w_file:
                         file_writer = csv.writer(w_file, delimiter=",", lineterminator="\r")
                         file_writer.writerow([link, type_of_link])
-                    self.ActionStatusLabel.setText("Ссылка успешно добавлена") # вместо затычки написать уведомление, что ссылка добавлена в бд и в главной части сделать ее видимой
+                    self.ActionStatusLabel.setText("Ссылка успешно добавлена")
                     self.ActionStatusLabel.adjustSize()
                     self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
                     self.label_show()
-                    self.UploadLinkBar.setText("")
-            else: # В случае ошибки вывести в окно с сообщениями, что не удалось подключиться к сайту
+            else:
                 self.ActionStatusLabel.setText("Ошибка! Не удалось подключиться к сайту")
                 self.ActionStatusLabel.adjustSize()
                 self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
                 self.label_show()
-                self.UploadLinkBar.setText("")
         except:
             self.ActionStatusLabel.setText("Ошибка! Не удалось подключиться к сайту")
             self.ActionStatusLabel.adjustSize()
             self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
             self.label_show()
-            self.UploadLinkBar.setText("")
         self.loadData()
         print("check_link func successfully worked")
 
@@ -174,65 +255,85 @@ class Ui_MainWindow(object):
             self.ActionStatusLabel.adjustSize()
             self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
             self.label_show()
-        for i in range(len(a)):
-            type = ""
-            if(a[i][1] == "mes"): type = "Мессенджер"
-            if(a[i][1] == "news"): type = "Новости"
-            if(a[i][1] == "shop"): type = "Магазин"
-            if(a[i][1] == "games"): type = "Игры"
-            if(a[i][1] == "video"): type = "Видеохостинг"
-            if(a[i][1] == "else"): type = "Другое"
-            s = str(a[i][0])
-            if len(s)>55:
-                s = s[0:55] + "...   -   " + type
-            else:
-                s = s + "   -   " + type
-            item = QListWidgetItem()
-            item_widget = QWidget()
-            line_text = QLabel(s)
-            line_push_button = QPushButton("Перейти")
-            sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-            line_push_button.setSizePolicy(sizePolicy)
-            line_push_button.setObjectName(str(i))
-            line_push_button.clicked.connect(self.buttonIndividual)
-            item_layout = QHBoxLayout()
-            line_text.setStyleSheet("font-size: 17px;\n"
-            "font-weight: 400;\n"
-            "margin-top: 4px;\n")
-            line_push_button.setStyleSheet("QPushButton {\n"
-            "margin-top: 6px;\n"
-            "padding: 5px;"
-            "font-size: 14px;\n"
-            "background-color: rgb(0, 200, 255);\n"
-            "border: 1px solid black;\n"
-            "border-radius: 0px;\n"
-            "border-radius: 7px\n"
-            "}\n"
-            "QPushButton:hover {\n"
-            "background-color: rgb(120, 200, 255);\n"
-            "}\n")
-            item_widget.setStyleSheet("background-color: whitesmoke;\n")
-            item_layout.addWidget(line_text)
-            item_layout.addWidget(line_push_button)
-            item_layout.setContentsMargins(0, 0, 0, 0)
-            item_layout.setSpacing(10)
-            item_layout.addStretch(1)
-            item_widget.setLayout(item_layout)
-            item.setSizeHint(item_widget.sizeHint())
-            self.BDView.addItem(item)
-            self.BDView.setItemWidget(item, item_widget)
+        else:
+            for i in range(len(a)):
+                type = ""
+                if(a[i][1] == "mes"): type = "Мессенджер"
+                if(a[i][1] == "news"): type = "Новости"
+                if(a[i][1] == "shop"): type = "Магазин"
+                if(a[i][1] == "games"): type = "Игры"
+                if(a[i][1] == "video"): type = "Видеохостинг"
+                if(a[i][1] == "else"): type = "Другое"
+                s = str(a[i][0])
+                if len(s)>46:
+                    s = f'{i+1}) ' + s[0:46] + "...   -   " + type
+                else:
+                    s = f'{i+1}) ' + s + "   -   " + type
+                item = QListWidgetItem()
+                item_widget = QWidget()
+                line_text = QLabel(s)
+                line_push_button = QPushButton("")
+                sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+                line_push_button.setSizePolicy(sizePolicy)
+                line_push_button.setObjectName(str(i))
+                line_push_button.clicked.connect(self.buttonIndividual)
+                line_delete_button = QPushButton("")
+                line_delete_button.setSizePolicy(sizePolicy)
+                line_delete_button.setObjectName(str(i))
+                line_delete_button.clicked.connect(self.deleteIndividual)
+                item_layout = QHBoxLayout()
+                line_text.setStyleSheet("font-size: 17px;\n"
+                "font-weight: 400;\n"
+                "margin-top: 4px;\n")
+                line_delete_button.setStyleSheet("QPushButton {\n"
+                "margin-top: 6px;\n"
+                "padding: 1px;"
+                "font-size: 14px;\n"
+                "background-color: whitesmoke;\n"
+                "border: 0px;\n"
+                "border-radius: 0px;\n"
+                "border-radius: 7px\n"
+                "}\n"
+                "QPushButton:hover {\n"
+                "background-color: rgb(120, 200, 255);\n"
+                "}\n")
+                line_push_button.setStyleSheet("QPushButton {\n"
+                "margin-top: 6px;\n"
+                "padding: 1px;"
+                "font-size: 14px;\n"
+                "background-color: whitesmoke;\n"
+                "border: 0px;\n"
+                "border-radius: 0px;\n"
+                "border-radius: 7px\n"
+                "}\n"
+                "QPushButton:hover {\n"
+                "background-color: rgb(120, 200, 255);\n"
+                "}\n")
+                plg_dir = os.path.dirname(__file__)
+                icon_path = plg_dir + '/images/delete.png'
+                icon = QtGui.QIcon(icon_path)
+                line_delete_button.setIcon(icon)
+                line_delete_button.setIconSize(QtCore.QSize(22, 20))
+                icon_path1 = plg_dir + '/images/goto.png'
+                icon1 = QtGui.QIcon(icon_path1)
+                line_push_button.setIcon(icon1)
+                line_push_button.setIconSize(QtCore.QSize(22, 20))
+                item_widget.setStyleSheet("background-color: whitesmoke;\n")
+                item_layout.addWidget(line_text)
+                item_layout.addWidget(line_push_button)
+                item_layout.addWidget(line_delete_button)
+                item_layout.setContentsMargins(0, 0, 0, 0)
+                item_layout.setSpacing(3)
+                item_layout.addStretch(1)
+                item_widget.setLayout(item_layout)
+                item.setSizeHint(item_widget.sizeHint())
+                self.BDView.addItem(item)
+                self.BDView.setItemWidget(item, item_widget)
             self.ActionStatusLabel.setText(f"Количество результатов: {len(a)}")
             self.ActionStatusLabel.adjustSize()
             self.ActionStatusLabel.move(795-self.ActionStatusLabel.width(), 95)
             self.label_show()
 
-    def LoadMenuVisibilityStatus(self):
-            global LoadMenuFlag
-            LoadMenuFlag = not LoadMenuFlag
-            if LoadMenuFlag:
-                self.LoadMenu.show()
-            else:
-                self.LoadMenu.hide()
     def FiltersFrameVisibilityStatus(self):
             global FiltersFrameFlag
             FiltersFrameFlag = not FiltersFrameFlag
@@ -271,7 +372,7 @@ class Ui_MainWindow(object):
 "}\n"
 "QScrollBar::sub-line:vertical {\n"
 "border: none;\n"
-"background-color: rgb(107, 107, 107);\n"
+"background-color: rgb(0, 200, 255);\n"
 "height: 15px;\n"
 "border-top-right-radius: 7px;\n"
 "subcontrol-position: top;\n"
@@ -282,7 +383,7 @@ class Ui_MainWindow(object):
 "}\n"
 "QScrollBar::add-line:vertical {\n"
 "border: none;\n"
-"background-color: rgb(107, 107, 107);\n"
+"background-color: rgb(0, 200, 255);\n"
 "height: 15px;\n"
 "border-bottom-right-radius: 7px;\n"
 "subcontrol-position: bottom;\n"
@@ -292,7 +393,7 @@ class Ui_MainWindow(object):
 "background-color: rgb(120, 200, 255);\n"
 "}\n"
 "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {\n"
-"background: none;\n"
+"background-color: rgb(107, 107, 107);\n"
 "}")
         MainWindow.setIconSize(QtCore.QSize(30, 30))
         self.CentralWidget = QtWidgets.QWidget(MainWindow)
@@ -301,6 +402,89 @@ class Ui_MainWindow(object):
 "background-color: rgb(85, 76, 76);\n"
 "}")
         self.CentralWidget.setObjectName("CentralWidget")
+        self.CentralWidget.keyPressEvent = self.keyPressEvent
+        self.CentralWidget.mousePressEvent = self.mousePressEvent
+        self.DownloadDBButton = QtWidgets.QToolButton(self.CentralWidget)
+        self.DownloadDBButton.setGeometry(QtCore.QRect(734, 490, 50, 50))
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.DownloadDBButton.sizePolicy().hasHeightForWidth())
+        self.DownloadDBButton.setSizePolicy(sizePolicy)
+        font = QtGui.QFont()
+        font.setFamily("Yu Gothic UI")
+        font.setPointSize(9)
+        font.setBold(False)
+        font.setWeight(50)
+        self.DownloadDBButton.setFont(font)
+        self.DownloadDBButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.DownloadDBButton.setFocusPolicy(QtCore.Qt.TabFocus)
+        self.DownloadDBButton.setStyleSheet("QToolButton {\n"
+"background-color: rgb(0, 200, 255);\n"
+"border: 1px solid black;\n"
+"border-radius: 7px;\n"
+"}\n"
+"QToolButton:hover {\n"
+"background-color: rgb(120, 200, 255);\n"
+"}")
+        self.DownloadDBButton.setText("")
+        icon_path2 = plg_dir + '/images/download.png'
+        icon2 = QtGui.QIcon(icon_path2)
+        self.DownloadDBButton.setIcon(icon2)
+        self.DownloadDBButton.setIconSize(QtCore.QSize(30, 30))
+        self.DownloadDBButton.setArrowType(QtCore.Qt.NoArrow)
+        self.DownloadDBButton.setObjectName("DownloadDBButton")
+        self.DownloadDBButton.clicked.connect(self.open)
+        self.label = QtWidgets.QLabel(self.CentralWidget)
+        self.label.setGeometry(QtCore.QRect(711, 470, 100, 20))
+        font = QtGui.QFont()
+        font.setFamily("Yu Gothic UI")
+        font.setPointSize(7)
+        self.label.setFont(font)
+        self.label.setStyleSheet("border: none;\n"
+"")
+        self.label.setObjectName("label")
+        self.DeleteDBButton = QtWidgets.QToolButton(self.CentralWidget)
+        self.DeleteDBButton.setGeometry(QtCore.QRect(734, 570, 50, 50))
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.DeleteDBButton.sizePolicy().hasHeightForWidth())
+        self.DeleteDBButton.setSizePolicy(sizePolicy)
+        font = QtGui.QFont()
+        font.setFamily("Yu Gothic UI")
+        font.setPointSize(9)
+        font.setBold(False)
+        font.setWeight(50)
+        self.DeleteDBButton.setFont(font)
+        self.DeleteDBButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.DeleteDBButton.setFocusPolicy(QtCore.Qt.TabFocus)
+        self.DeleteDBButton.setStyleSheet("QToolButton {\n"
+"background-color: rgb(0, 200, 255);\n"
+"border: 1px solid black;\n"
+"border-radius: 7px;\n"
+"}\n"
+"QToolButton:hover {\n"
+"background-color: rgb(120, 200, 255);\n"
+"}")
+        self.DeleteDBButton.setText("")
+        icon_path5 = plg_dir + '/images/delete.png'
+        icon5 = QtGui.QIcon(icon_path5)
+        self.DeleteDBButton.setIcon(icon5)
+        self.DeleteDBButton.setIconSize(QtCore.QSize(30, 30))
+        self.DeleteDBButton.setArrowType(QtCore.Qt.NoArrow)
+        self.DeleteDBButton.setObjectName("DownloadDBButton")
+        self.DeleteDBButton.clicked.connect(self.deleteDB)
+        self.deletelabel = QtWidgets.QLabel(self.CentralWidget)
+        self.deletelabel.setGeometry(QtCore.QRect(715, 550, 100, 20))
+        font = QtGui.QFont()
+        font.setFamily("Yu Gothic UI")
+        font.setPointSize(7)
+        self.deletelabel.setFont(font)
+        self.deletelabel.setStyleSheet("border: none;\n"
+"")
+        self.deletelabel.setObjectName("label")
+        self.deletelabel.setText("Удалить список")
         self.SearchBox = QtWidgets.QGroupBox(self.CentralWidget)
         self.SearchBox.setGeometry(QtCore.QRect(10, 10, 790, 70))
         self.SearchBox.setStyleSheet("border-radius: 20px;\n"
@@ -419,7 +603,8 @@ class Ui_MainWindow(object):
         icon4 = QtGui.QIcon(icon_path4)
         self.AddLinkButton.setIcon(icon4)
         self.BDView = QtWidgets.QListWidget(self.CentralWidget)
-        self.BDView.setGeometry(QtCore.QRect(24, 90, 690, 530))
+        self.BDView.mousePressEvent = self.mousePressEvent
+        self.BDView.setGeometry(QtCore.QRect(24, 90, 683, 530))
         font = QtGui.QFont()
         font.setFamily("Yu Gothic UI")
         self.BDView.setFont(font)
@@ -508,147 +693,6 @@ class Ui_MainWindow(object):
         self.CheckBoxOther.setFont(font)
         self.CheckBoxOther.setObjectName("CheckBoxOther")
         self.verticalLayout.addWidget(self.CheckBoxOther)
-        self.LoadMenu = QtWidgets.QFrame(self.CentralWidget)
-        self.LoadMenu.setGeometry(QtCore.QRect(150, 140, 590, 220))
-        self.LoadMenu.setStyleSheet("QFrame {\n"
-"    background-color: whitesmoke;\n"
-"    padding: 0px;\n"
-"    border-radius: 20px;\n"
-"    border: 3px solid rgb(0, 200, 255);\n"
-"    border-style: outset;\n"
-"    background-color: rgb(107, 107, 107);\n"
-"}")
-        self.LoadMenu.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.LoadMenu.setFrameShadow(QtWidgets.QFrame.Raised)
-        self.LoadMenu.setObjectName("LoadMenu")
-        self.UploadLinkBar = QtWidgets.QLineEdit(self.LoadMenu)
-        self.UploadLinkBar.setGeometry(QtCore.QRect(20, 25, 551, 30))
-        font = QtGui.QFont()
-        font.setFamily("Yu Gothic UI")
-        font.setPointSize(9)
-        font.setBold(False)
-        font.setWeight(50)
-        self.UploadLinkBar.setFont(font)
-        self.UploadLinkBar.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
-        self.UploadLinkBar.setToolTipDuration(-1)
-        self.UploadLinkBar.setLayoutDirection(QtCore.Qt.LeftToRight)
-        self.UploadLinkBar.setAutoFillBackground(False)
-        self.UploadLinkBar.setStyleSheet("background-color: whitesmoke;\n"
-"border: 1px solid black;\n"
-"border-radius: 7px;\n"
-"color: #000000;\n"
-"padding-left: 5px;")
-        self.UploadLinkBar.setText("")
-        self.UploadLinkBar.setMaxLength(32767)
-        self.UploadLinkBar.setFrame(True)
-        self.UploadLinkBar.setCursorPosition(0)
-        self.UploadLinkBar.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
-        self.UploadLinkBar.setDragEnabled(False)
-        self.UploadLinkBar.setObjectName("UploadLinkBar")
-        self.UploadLinkButton = QtWidgets.QToolButton(self.LoadMenu)
-        self.UploadLinkButton.setGeometry(QtCore.QRect(235, 65, 121, 30))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.UploadLinkButton.sizePolicy().hasHeightForWidth())
-        self.UploadLinkButton.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("Yu Gothic UI")
-        font.setPointSize(9)
-        font.setBold(False)
-        font.setWeight(50)
-        self.UploadLinkButton.setFont(font)
-        self.UploadLinkButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.UploadLinkButton.setFocusPolicy(QtCore.Qt.TabFocus)
-        self.UploadLinkButton.setStyleSheet("QToolButton {\n"
-"background-color: rgb(0, 200, 255);\n"
-"border: 1px solid black;\n"
-"border-radius: 7px;\n"
-"}\n"
-"QToolButton:hover {\n"
-"background-color: rgb(120, 200, 255);\n"
-"}")
-        self.UploadLinkButton.setArrowType(QtCore.Qt.NoArrow)
-        self.UploadLinkButton.setObjectName("UploadLinkButton")
-        self.UploadLinkButton.clicked.connect(lambda: self.check_link())
-        self.DownloadDBButton = QtWidgets.QToolButton(self.LoadMenu)
-        self.DownloadDBButton.setGeometry(QtCore.QRect(100, 150, 50, 50))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.DownloadDBButton.sizePolicy().hasHeightForWidth())
-        self.DownloadDBButton.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("Yu Gothic UI")
-        font.setPointSize(9)
-        font.setBold(False)
-        font.setWeight(50)
-        self.DownloadDBButton.setFont(font)
-        self.DownloadDBButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.DownloadDBButton.setFocusPolicy(QtCore.Qt.TabFocus)
-        self.DownloadDBButton.setStyleSheet("QToolButton {\n"
-"background-color: rgb(0, 200, 255);\n"
-"border: 1px solid black;\n"
-"border-radius: 7px;\n"
-"}\n"
-"QToolButton:hover {\n"
-"background-color: rgb(120, 200, 255);\n"
-"}")
-        self.DownloadDBButton.setText("")
-        icon_path2 = plg_dir + '/images/download.png'
-        icon2 = QtGui.QIcon(icon_path2)
-        self.DownloadDBButton.setIcon(icon2)
-        self.DownloadDBButton.setIconSize(QtCore.QSize(30, 30))
-        self.DownloadDBButton.setArrowType(QtCore.Qt.NoArrow)
-        self.DownloadDBButton.setObjectName("DownloadDBButton")
-        self.UploadDBButton = QtWidgets.QToolButton(self.LoadMenu)
-        self.UploadDBButton.setGeometry(QtCore.QRect(440, 150, 50, 50))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.UploadDBButton.sizePolicy().hasHeightForWidth())
-        self.UploadDBButton.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("Yu Gothic UI")
-        font.setPointSize(9)
-        font.setBold(False)
-        font.setWeight(50)
-        self.UploadDBButton.setFont(font)
-        self.UploadDBButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.UploadDBButton.setFocusPolicy(QtCore.Qt.TabFocus)
-        self.UploadDBButton.setStyleSheet("QToolButton {\n"
-"background-color: rgb(0, 200, 255);\n"
-"border: 1px solid black;\n"
-"border-radius: 7px;\n"
-"}\n"
-"QToolButton:hover {\n"
-"background-color: rgb(120, 200, 255);\n"
-"}")
-        self.UploadDBButton.setText("")
-        icon_path3 = plg_dir + '/images/upload.png'
-        icon3 = QtGui.QIcon(icon_path3)
-        self.UploadDBButton.setIcon(icon3)
-        self.UploadDBButton.setIconSize(QtCore.QSize(30, 30))
-        self.UploadDBButton.setArrowType(QtCore.Qt.NoArrow)
-        self.UploadDBButton.setObjectName("UploadDBButton")
-        self.label = QtWidgets.QLabel(self.LoadMenu)
-        self.label.setGeometry(QtCore.QRect(82, 130, 91, 20))
-        font = QtGui.QFont()
-        font.setFamily("Yu Gothic UI")
-        font.setPointSize(7)
-        self.label.setFont(font)
-        self.label.setStyleSheet("border: none;\n"
-"")
-        self.label.setObjectName("label")
-        self.label_2 = QtWidgets.QLabel(self.LoadMenu)
-        self.label_2.setGeometry(QtCore.QRect(425, 130, 91, 20))
-        font = QtGui.QFont()
-        font.setFamily("Yu Gothic UI")
-        font.setPointSize(7)
-        self.label_2.setFont(font)
-        self.label_2.setStyleSheet("border: none;\n"
-"")
-        self.label_2.setObjectName("label_2")
         self.ActionStatusLabel = QtWidgets.QLabel(self.CentralWidget)
         font = QtGui.QFont()
         font.setFamily("Yu Gothic UI")
@@ -676,7 +720,7 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "LinkAnalyzer"))
-        self.SearchBar.setPlaceholderText(_translate("MainWindow", "Поиск по тегу/ссылке..."))
+        self.SearchBar.setPlaceholderText(_translate("MainWindow", "<- Поиск ссылки / Добавление ссылки ->"))
         self.SearchFiltersButton.setText(_translate("MainWindow", "Фильтры"))
         self.CheckBoxMessengers.setText(_translate("MainWindow", "Мессенджеры"))
         self.CheckBoxGames.setText(_translate("MainWindow", "Игры"))
@@ -684,12 +728,8 @@ class Ui_MainWindow(object):
         self.CheckBoxNews.setText(_translate("MainWindow", "Новости"))
         self.CheckBoxVideo.setText(_translate("MainWindow", "Видеохостинг"))
         self.CheckBoxOther.setText(_translate("MainWindow", "Другое"))
-        self.UploadLinkBar.setPlaceholderText(_translate("MainWindow", "Введите ссылку для анализа..."))
-        self.UploadLinkButton.setText(_translate("MainWindow", "Анализировать"))
-        self.label.setText(_translate("MainWindow", "Подгрузка базы"))
-        self.label_2.setText(_translate("MainWindow", "Выгрузка базы"))
+        self.label.setText(_translate("MainWindow", "Загрузить ссылки"))
         self.ActionStatusLabel.setText(_translate("MainWindow", "system text"))
-
 
 if __name__ == "__main__":
     import sys
@@ -701,5 +741,4 @@ if __name__ == "__main__":
     ui.loadData()
     ui.ActionStatusLabel.hide()
     ui.FiltersFrame.hide()
-    ui.LoadMenu.hide()
     sys.exit(app.exec_())
